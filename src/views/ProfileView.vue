@@ -1,6 +1,7 @@
 <script setup>
 import { useAuth } from '@okta/okta-vue'
 import { inject } from 'vue'
+import TokenPanel from '../components/TokenPanel.vue'
 
 const oktaAuth = useAuth()
 const authState = inject('okta.authState')
@@ -29,15 +30,21 @@ async function signOut() {
       </div>
 
       <div class="panel">
-        <h2>Access Token</h2>
-        <template v-if="authState?.isAuthenticated && authState.accessToken">
-          <dl>
-            <dt>Scopes</dt>
-            <dd>{{ authState.accessToken.scopes.join(', ') }}</dd>
-            <dt>Expires</dt>
-            <dd>{{ new Date(authState.accessToken.expiresAt * 1000).toLocaleString() }}</dd>
-          </dl>
-          <pre class="token-value">{{ authState.accessToken.accessToken }}</pre>
+        <template v-if="authState?.isAuthenticated">
+          <TokenPanel
+            v-if="authState.accessToken"
+            label="Access Token"
+            :token="authState.accessToken.accessToken"
+          />
+          <TokenPanel
+            v-if="authState.idToken"
+            label="ID Token"
+            :token="authState.idToken.idToken"
+          />
+          <template v-if="authState.refreshToken">
+            <h2>Refresh Token</h2>
+            <pre class="token-value">{{ authState.refreshToken.refreshToken }}</pre>
+          </template>
         </template>
       </div>
     </div>
@@ -68,7 +75,12 @@ async function signOut() {
 
 h2 {
   font-size: 1.25rem;
-  margin-bottom: 1.5rem;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+h2:first-child {
+  margin-top: 0;
 }
 
 dl {
