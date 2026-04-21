@@ -40,6 +40,7 @@ defineProps({
 h2 {
   font-size: 1.1rem;
   margin: 0;
+  color: var(--color-heading);
 }
 
 .meta {

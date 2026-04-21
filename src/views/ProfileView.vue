@@ -32,7 +32,9 @@ async function fetchUserinfo() {
   userinfoError.value = null
   try {
     userinfo.value = await oktaAuth.getUser()
-    userinfoUpdatedAt.value = Date.now()
+    userinfoUpdatedAt.value = userinfo.value.updated_at
+      ? userinfo.value.updated_at * 1000
+      : null
   } catch (e) {
     userinfoError.value = e.message ?? 'Failed to fetch userinfo.'
   } finally {
@@ -162,6 +164,7 @@ h2 {
   font-size: 1.25rem;
   margin-top: 2rem;
   margin-bottom: 1rem;
+  color: var(--color-heading);
 }
 
 h2:first-child {

@@ -51,7 +51,7 @@ header {
 .title {
   font-weight: 700;
   font-size: 1rem;
-  color: var(--color-text);
+  color: var(--color-heading);
   text-decoration: none;
   padding: 0;
 }
