@@ -2,6 +2,7 @@
 import { inject, computed, ref } from 'vue'
 import { useAuth } from '@okta/okta-vue'
 import TokenPanel from '../components/TokenPanel.vue'
+import ClaimPanel from '../components/ClaimPanel.vue'
 
 const oktaAuth = useAuth()
 const authState = inject('okta.authState')
@@ -44,25 +45,25 @@ const allClaims = computed(() => ({
   <main class="profile">
     <div class="layout">
       <div class="panel">
-        <h2>Profile</h2>
         <template v-if="authState?.isAuthenticated && authState.idToken">
-          <dl>
-            <dt>Name</dt>
-            <dd>{{ authState.idToken.claims.name }}</dd>
-            <dt>Email</dt>
-            <dd>{{ authState.idToken.claims.email }}</dd>
-            <dt>Subject</dt>
-            <dd>{{ authState.idToken.claims.sub }}</dd>
-          </dl>
+          <ClaimPanel label="Profile">
+            <dl>
+              <dt>Name</dt>
+              <dd>{{ authState.idToken.claims.name }}</dd>
+              <dt>Email</dt>
+              <dd>{{ authState.idToken.claims.email }}</dd>
+              <dt>Subject</dt>
+              <dd>{{ authState.idToken.claims.sub }}</dd>
+            </dl>
+          </ClaimPanel>
 
           <template v-for="{ claim, heading } in extraClaims" :key="claim">
-            <template v-if="allClaims[claim] !== undefined">
-              <h2>{{ heading }}</h2>
+            <ClaimPanel v-if="allClaims[claim] !== undefined" :label="heading">
               <ul v-if="Array.isArray(allClaims[claim])" class="claim-list">
                 <li v-for="item in allClaims[claim]" :key="item">{{ item }}</li>
               </ul>
               <p v-else class="claim-value">{{ allClaims[claim] }}</p>
-            </template>
+            </ClaimPanel>
           </template>
         </template>
       </div>
