@@ -1,10 +1,27 @@
 <script setup>
 import { useAuth } from '@okta/okta-vue'
-import { inject } from 'vue'
+import { inject, computed } from 'vue'
 import TokenPanel from '../components/TokenPanel.vue'
 
 const oktaAuth = useAuth()
 const authState = inject('okta.authState')
+
+const extraClaims = computed(() => {
+  const raw = import.meta.env.VITE_OKTA_PROFILE_CLAIMS
+  if (!raw) return []
+  return raw.split(',').flatMap((entry) => {
+    const colon = entry.indexOf(':')
+    if (colon === -1) return []
+    const claim = entry.slice(0, colon).trim()
+    const heading = entry.slice(colon + 1).trim()
+    return claim && heading ? [{ claim, heading }] : []
+  })
+})
+
+const allClaims = computed(() => ({
+  ...authState.value?.accessToken?.claims,
+  ...authState.value?.idToken?.claims,
+}))
 
 async function signOut() {
   await oktaAuth.signOut()
@@ -25,6 +42,16 @@ async function signOut() {
             <dt>Subject</dt>
             <dd>{{ authState.idToken.claims.sub }}</dd>
           </dl>
+
+          <template v-for="{ claim, heading } in extraClaims" :key="claim">
+            <template v-if="allClaims[claim] !== undefined">
+              <h2>{{ heading }}</h2>
+              <ul v-if="Array.isArray(allClaims[claim])" class="claim-list">
+                <li v-for="item in allClaims[claim]" :key="item">{{ item }}</li>
+              </ul>
+              <p v-else class="claim-value">{{ allClaims[claim] }}</p>
+            </template>
+          </template>
         </template>
         <button class="btn btn-outline" @click="signOut">Sign Out</button>
       </div>
@@ -114,6 +141,22 @@ dd {
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.claim-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+}
+
+.claim-list li {
+  padding: 0.2rem 0;
+  font-size: 1rem;
+}
+
+.claim-value {
+  margin: 0 0 1.5rem;
+  font-size: 1rem;
 }
 
 .btn {
