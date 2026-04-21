@@ -1,10 +1,25 @@
 <script setup>
+import { inject, computed, ref } from 'vue'
 import { useAuth } from '@okta/okta-vue'
-import { inject, computed } from 'vue'
 import TokenPanel from '../components/TokenPanel.vue'
 
 const oktaAuth = useAuth()
 const authState = inject('okta.authState')
+
+const refreshing = ref(false)
+const refreshError = ref(null)
+
+async function refreshTokens() {
+  refreshing.value = true
+  refreshError.value = null
+  try {
+    await oktaAuth.tokenManager.renew('accessToken')
+  } catch (e) {
+    refreshError.value = e.message ?? 'Token refresh failed.'
+  } finally {
+    refreshing.value = false
+  }
+}
 
 const extraClaims = computed(() => {
   const raw = import.meta.env.VITE_OKTA_PROFILE_CLAIMS
@@ -23,9 +38,6 @@ const allClaims = computed(() => ({
   ...authState.value?.idToken?.claims,
 }))
 
-async function signOut() {
-  await oktaAuth.signOut()
-}
 </script>
 
 <template>
@@ -53,7 +65,6 @@ async function signOut() {
             </template>
           </template>
         </template>
-        <button class="btn btn-outline" @click="signOut">Sign Out</button>
       </div>
 
       <div class="panel">
@@ -62,14 +73,26 @@ async function signOut() {
             v-if="authState.accessToken"
             label="Access Token"
             :token="authState.accessToken.accessToken"
+            :expires-at="authState.accessToken.expiresAt"
           />
           <TokenPanel
             v-if="authState.idToken"
             label="ID Token"
             :token="authState.idToken.idToken"
+            :expires-at="authState.idToken.expiresAt"
           />
           <template v-if="authState.refreshToken">
-            <h2>Refresh Token</h2>
+            <div class="token-heading">
+              <h2>Refresh Token</h2>
+              <button class="btn-refresh" :disabled="refreshing" @click="refreshTokens">
+                {{ refreshing ? 'Refreshing…' : 'Refresh' }}
+              </button>
+            </div>
+            <p v-if="refreshError" class="refresh-error">{{ refreshError }}</p>
+            <dl v-if="authState.refreshToken.expiresAt">
+              <dt>Expires</dt>
+              <dd>{{ new Date(authState.refreshToken.expiresAt * 1000).toLocaleString() }}</dd>
+            </dl>
             <pre class="token-value">{{ authState.refreshToken.refreshToken }}</pre>
           </template>
         </template>
@@ -143,6 +166,45 @@ dd {
   word-break: break-all;
 }
 
+.token-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.token-heading h2 {
+  margin: 0;
+}
+
+.btn-refresh {
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: 6px;
+  padding: 0.3rem 0.85rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  opacity: 0.7;
+}
+
+.btn-refresh:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.refresh-error {
+  font-size: 0.85rem;
+  color: #c0392b;
+  margin: 0 0 0.75rem;
+}
+
 .claim-list {
   list-style: none;
   padding: 0;
@@ -159,22 +221,4 @@ dd {
   font-size: 1rem;
 }
 
-.btn {
-  padding: 0.6rem 1.5rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.btn-outline {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-}
-
-.btn-outline:hover {
-  opacity: 0.7;
-}
 </style>

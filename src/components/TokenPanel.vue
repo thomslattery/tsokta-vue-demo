@@ -4,6 +4,7 @@ import { ref, computed } from 'vue'
 const props = defineProps({
   label: { type: String, required: true },
   token: { type: String, required: true },
+  expiresAt: { type: Number, default: null },
 })
 
 const activeTab = ref('parsed')
@@ -41,6 +42,11 @@ const parsed = computed(() => {
         </button>
       </div>
     </div>
+
+    <dl v-if="expiresAt" class="meta">
+      <dt>Expires</dt>
+      <dd>{{ new Date(expiresAt * 1000).toLocaleString() }}</dd>
+    </dl>
 
     <pre v-if="activeTab === 'parsed' && parsed" class="token-value">{{ JSON.stringify(parsed, null, 2) }}</pre>
     <p v-else-if="activeTab === 'parsed'" class="parse-error">Unable to parse token.</p>
@@ -99,6 +105,22 @@ h2 {
 
 .tabs button:not(.active):hover {
   background: var(--color-background-mute);
+}
+
+.meta {
+  margin: 0 0 0.75rem;
+}
+
+.meta dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+
+.meta dd {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
 }
 
 .token-value {
