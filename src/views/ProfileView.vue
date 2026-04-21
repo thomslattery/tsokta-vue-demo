@@ -22,6 +22,24 @@ async function refreshTokens() {
   }
 }
 
+const userinfo = ref(null)
+const userinfoLoading = ref(false)
+const userinfoError = ref(null)
+const userinfoUpdatedAt = ref(null)
+
+async function fetchUserinfo() {
+  userinfoLoading.value = true
+  userinfoError.value = null
+  try {
+    userinfo.value = await oktaAuth.getUser()
+    userinfoUpdatedAt.value = Date.now()
+  } catch (e) {
+    userinfoError.value = e.message ?? 'Failed to fetch userinfo.'
+  } finally {
+    userinfoLoading.value = false
+  }
+}
+
 const extraClaims = computed(() => {
   const raw = import.meta.env.VITE_OKTA_PROFILE_CLAIMS
   if (!raw) return []
@@ -65,6 +83,22 @@ const allClaims = computed(() => ({
               <p v-else class="claim-value">{{ allClaims[claim] }}</p>
             </ClaimPanel>
           </template>
+
+          <ClaimPanel label="Userinfo" :updated-at="userinfoUpdatedAt">
+            <template #action>
+              <button class="btn-fetch" :disabled="userinfoLoading" @click="fetchUserinfo">
+                {{ userinfoLoading ? 'Loading…' : 'Fetch Userinfo' }}
+              </button>
+            </template>
+            <p v-if="userinfoError" class="fetch-error">{{ userinfoError }}</p>
+            <dl v-if="userinfo">
+              <template v-for="(value, key) in userinfo" :key="key">
+                <dt>{{ key }}</dt>
+                <dd>{{ Array.isArray(value) ? value.join(', ') : value }}</dd>
+              </template>
+            </dl>
+            <p v-else class="empty-hint">Press Fetch Userinfo to load.</p>
+          </ClaimPanel>
         </template>
       </div>
 
@@ -204,6 +238,39 @@ dd {
   font-size: 0.85rem;
   color: #c0392b;
   margin: 0 0 0.75rem;
+}
+
+.btn-fetch {
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: 6px;
+  padding: 0.35rem 1rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-fetch:hover:not(:disabled) {
+  opacity: 0.7;
+}
+
+.btn-fetch:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.empty-hint {
+  font-size: 0.9rem;
+  opacity: 0.5;
+  margin: 0;
+}
+
+.fetch-error {
+  font-size: 0.85rem;
+  color: #c0392b;
+  margin: 0 0 0.5rem;
 }
 
 .claim-list {
