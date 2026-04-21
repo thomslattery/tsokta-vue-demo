@@ -1,8 +1,10 @@
 <script setup>
 import { useAuth } from '@okta/okta-vue'
+import { inject } from 'vue'
 import { useRouter } from 'vue-router'
 
-const { authState, oktaAuth } = useAuth()
+const oktaAuth = useAuth()
+const authState = inject('okta.authState')
 const router = useRouter()
 
 async function login() {
@@ -22,7 +24,7 @@ function goToProfile() {
       <button v-if="authState?.isAuthenticated" class="btn" @click="goToProfile">
         Go to Profile
       </button>
-      <button v-else class="btn" :disabled="!authState" @click="login">Sign In</button>
+      <button v-else class="btn" @click="login">Sign In</button>
     </div>
   </main>
 </template>
