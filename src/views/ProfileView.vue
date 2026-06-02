@@ -1,5 +1,5 @@
 <script setup>
-import { inject, computed, ref } from 'vue'
+import { inject, computed, ref, onMounted } from 'vue'
 import { useAuth } from '@okta/okta-vue'
 import TokenPanel from '../components/TokenPanel.vue'
 import ClaimPanel from '../components/ClaimPanel.vue'
@@ -58,6 +58,26 @@ const allClaims = computed(() => ({
   ...authState.value?.accessToken?.claims,
   ...authState.value?.idToken?.claims,
 }))
+
+const cookieName = import.meta.env.VITE_COOKIE_NAME
+const cookie = ref(null)
+const cookieStoreSupported = ref(false)
+
+async function loadCookie() {
+  if (!cookieName) return
+  if ('cookieStore' in window) {
+    cookieStoreSupported.value = true
+    cookie.value = await window.cookieStore.get(cookieName)
+  } else {
+    const match = document.cookie
+      .split(';')
+      .map((c) => c.trim())
+      .find((c) => c.startsWith(cookieName + '='))
+    cookie.value = match ? { name: cookieName, value: match.slice(cookieName.length + 1) } : null
+  }
+}
+
+onMounted(loadCookie)
 
 </script>
 
@@ -131,6 +151,27 @@ const allClaims = computed(() => ({
               <dd>{{ new Date(authState.refreshToken.expiresAt * 1000).toLocaleString() }}</dd>
             </dl>
             <pre class="token-value">{{ authState.refreshToken.refreshToken }}</pre>
+          </template>
+
+          <template v-if="cookieName">
+            <h2>{{ cookieName }}</h2>
+            <template v-if="cookie">
+              <dl>
+                <dt>Value</dt>
+                <dd>{{ cookie.value }}</dd>
+                <template v-if="cookieStoreSupported">
+                  <dt>Domain</dt>
+                  <dd>{{ cookie.domain ?? '—' }}</dd>
+                  <dt>Path</dt>
+                  <dd>{{ cookie.path ?? '—' }}</dd>
+                  <dt>Secure</dt>
+                  <dd>{{ cookie.secure ? 'Yes' : 'No' }}</dd>
+                  <dt>SameSite</dt>
+                  <dd>{{ cookie.sameSite ?? '—' }}</dd>
+                </template>
+              </dl>
+            </template>
+            <p v-else class="empty-hint">Cookie not present.</p>
           </template>
         </template>
       </div>
