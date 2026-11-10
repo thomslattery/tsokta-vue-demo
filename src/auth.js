@@ -55,3 +55,45 @@ export async function getOrgAccessToken() {
 export function clearOrgTokens() {
   orgOktaAuth.tokenManager.clear()
 }
+
+// Okta "enroll authenticator" flow: a full-page redirect to /authorize with
+// prompt=enroll_authenticator and response_type=none. No tokens come back; Okta
+// redirects to the redirect URI with state (and error/error_description on failure).
+const ENROLL_STATE_KEY = 'okta-enroll-state'
+
+export const enrollConfig = {
+  clientId: import.meta.env.VITE_OKTA_ENROLL_CLIENT_ID,
+  amrValues: import.meta.env.VITE_OKTA_ENROLL_AMR_VALUES || 'webauthn',
+  redirectUri: import.meta.env.VITE_OKTA_ENROLL_REDIRECT_URI || `${window.location.origin}/profile`,
+}
+
+export function startEnrollment() {
+  const state = crypto.randomUUID().replaceAll('-', '')
+  sessionStorage.setItem(ENROLL_STATE_KEY, state)
+  const params = new URLSearchParams({
+    client_id: enrollConfig.clientId,
+    response_type: 'none',
+    prompt: 'enroll_authenticator',
+    enroll_amr_values: enrollConfig.amrValues,
+    // Okta rejects any other acr_values with prompt=enroll_authenticator.
+    acr_values: 'urn:okta:loa:2fa:any:ifpossible',
+    max_age: '0',
+    redirect_uri: enrollConfig.redirectUri,
+    state,
+  })
+  const orgUrl = new URL(import.meta.env.VITE_OKTA_ISSUER).origin
+  window.location.assign(`${orgUrl}/oauth2/v1/authorize?${params}`)
+}
+
+// If the current URL is the return from startEnrollment, returns
+// { ok, error, description } and clears the stored state; otherwise null.
+export function consumeEnrollmentResult(query) {
+  const expected = sessionStorage.getItem(ENROLL_STATE_KEY)
+  if (!expected || query.state !== expected) return null
+  sessionStorage.removeItem(ENROLL_STATE_KEY)
+  return {
+    ok: !query.error,
+    error: query.error ?? null,
+    description: query.error_description ?? null,
+  }
+}

@@ -1,9 +1,16 @@
 <script setup>
 import { inject, computed, ref, onMounted } from 'vue'
 import { useAuth } from '@okta/okta-vue'
+import { useRoute, useRouter } from 'vue-router'
 import TokenPanel from '../components/TokenPanel.vue'
 import ClaimPanel from '../components/ClaimPanel.vue'
-import { getOrgAccessToken, clearOrgTokens } from '../auth.js'
+import {
+  getOrgAccessToken,
+  clearOrgTokens,
+  enrollConfig,
+  startEnrollment,
+  consumeEnrollmentResult,
+} from '../auth.js'
 
 const oktaAuth = useAuth()
 const authState = inject('okta.authState')
@@ -75,6 +82,17 @@ async function fetchFactors() {
   }
 }
 
+// "Security Key or Biometric" (renamed "Passkey (FIDO2 WebAuthn)" in newer orgs).
+function isPasskey(factor) {
+  return (
+    factor.key === 'webauthn' ||
+    factor.type === 'security_key' ||
+    /security key or biometric|passkey/i.test(factor.name ?? '')
+  )
+}
+
+const hasPasskey = computed(() => factors.value?.some(isPasskey) ?? false)
+
 const extraClaims = computed(() => {
   const raw = import.meta.env.VITE_OKTA_PROFILE_CLAIMS
   if (!raw) return []
@@ -111,6 +129,20 @@ async function loadCookie() {
 }
 
 onMounted(loadCookie)
+
+const route = useRoute()
+const router = useRouter()
+const enrollResult = ref(null)
+
+onMounted(() => {
+  // Okta returns state/error in the query string or the fragment depending on response_mode.
+  const fromHash = Object.fromEntries(new URLSearchParams(route.hash.slice(1)))
+  const result = consumeEnrollmentResult({ ...fromHash, ...route.query })
+  if (result) {
+    enrollResult.value = result
+    router.replace({ path: route.path })
+  }
+})
 
 </script>
 
@@ -183,6 +215,26 @@ onMounted(loadCookie)
             <p v-else-if="!factorsError" class="empty-hint">Press Enrolled Factors to load.</p>
           </ClaimPanel>
 
+          <ClaimPanel
+            v-if="enrollConfig.clientId && (enrollResult || (factors && !hasPasskey))"
+            label="Enroll Passkey"
+          >
+            <template #action>
+              <button class="btn-fetch" @click="startEnrollment">Enroll Passkey</button>
+            </template>
+            <template v-if="enrollResult">
+              <p v-if="enrollResult.ok" class="enroll-success">
+                Enrollment flow completed. Press Enrolled Factors to confirm.
+              </p>
+              <p v-else class="fetch-error">
+                {{ enrollResult.error }}<template v-if="enrollResult.description">: {{ enrollResult.description }}</template>
+              </p>
+            </template>
+            <p v-else class="empty-hint">
+              Redirects to Okta to enroll <code>{{ enrollConfig.amrValues }}</code> for app
+              <code>{{ enrollConfig.clientId }}</code>.
+            </p>
+          </ClaimPanel>
         </template>
       </div>
 
@@ -388,6 +440,12 @@ dd {
 .claim-list li {
   padding: 0.2rem 0;
   font-size: 1rem;
+}
+
+.enroll-success {
+  font-size: 0.85rem;
+  color: #27ae60;
+  margin: 0 0 0.5rem;
 }
 
 .enrollment {
