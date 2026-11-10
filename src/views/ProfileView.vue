@@ -3,6 +3,7 @@ import { inject, computed, ref, onMounted } from 'vue'
 import { useAuth } from '@okta/okta-vue'
 import TokenPanel from '../components/TokenPanel.vue'
 import ClaimPanel from '../components/ClaimPanel.vue'
+import { getOrgAccessToken, clearOrgTokens } from '../auth.js'
 
 const oktaAuth = useAuth()
 const authState = inject('okta.authState')
@@ -39,6 +40,38 @@ async function fetchUserinfo() {
     userinfoError.value = e.message ?? 'Failed to fetch userinfo.'
   } finally {
     userinfoLoading.value = false
+  }
+}
+
+const factors = ref(null)
+const factorsLoading = ref(false)
+const factorsError = ref(null)
+
+async function fetchFactors() {
+  factorsLoading.value = true
+  factorsError.value = null
+  try {
+    const orgUrl = new URL(import.meta.env.VITE_OKTA_ISSUER).origin
+    const accessToken = await getOrgAccessToken()
+    const res = await fetch(`${orgUrl}/idp/myaccount/authenticators?expand=enrollments`, {
+      headers: {
+        Accept: 'application/json; okta-version=1.0.0',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) clearOrgTokens()
+      const body = await res.json().catch(() => null)
+      const detail =
+        body?.errorSummary ?? res.headers.get('www-authenticate') ?? res.statusText
+      throw new Error(`${res.status}: ${detail}`)
+    }
+    const authenticators = await res.json()
+    factors.value = authenticators.filter((a) => (a._embedded?.enrollments?.length ?? 0) > 0)
+  } catch (e) {
+    factorsError.value = e.message ?? 'Failed to fetch enrolled factors.'
+  } finally {
+    factorsLoading.value = false
   }
 }
 
@@ -121,6 +154,35 @@ onMounted(loadCookie)
             </dl>
             <p v-else class="empty-hint">Press Fetch Userinfo to load.</p>
           </ClaimPanel>
+
+          <ClaimPanel label="Factors">
+            <template #action>
+              <button class="btn-fetch" :disabled="factorsLoading" @click="fetchFactors">
+                {{ factorsLoading ? 'Loading…' : 'Enrolled Factors' }}
+              </button>
+            </template>
+            <p v-if="factorsError" class="fetch-error">{{ factorsError }}</p>
+            <template v-if="factors">
+              <p v-if="factors.length === 0" class="empty-hint">No enrolled factors.</p>
+              <dl v-for="factor in factors" :key="factor.id ?? factor.key">
+                <dt>{{ factor.name ?? factor.key }}</dt>
+                <dd>
+                  {{ factor.type }}
+                  <template v-for="enrollment in factor._embedded.enrollments" :key="enrollment.id">
+                    <br />
+                    <span class="enrollment">
+                      {{ enrollment.profile?.deviceName ?? enrollment.profile?.phoneNumber ?? enrollment.profile?.email ?? enrollment.name ?? enrollment.id }}
+                      <template v-if="enrollment.lastChallenged">
+                        · last used {{ new Date(enrollment.lastChallenged).toLocaleString() }}
+                      </template>
+                    </span>
+                  </template>
+                </dd>
+              </dl>
+            </template>
+            <p v-else-if="!factorsError" class="empty-hint">Press Enrolled Factors to load.</p>
+          </ClaimPanel>
+
         </template>
       </div>
 
@@ -326,6 +388,11 @@ dd {
 .claim-list li {
   padding: 0.2rem 0;
   font-size: 1rem;
+}
+
+.enrollment {
+  font-size: 0.85rem;
+  opacity: 0.75;
 }
 
 .claim-value {
